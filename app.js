@@ -1,10 +1,10 @@
-/* Amnyam GEG — Live Reader v3.4
+/* Amnyam GEG — Live Reader v3.5
    single wheel, avatars, localStorage caching
 */
 
 const SHEET_PUB_ID = '2PACX-1vRGUrrrjcldGF4ttve-lFTgUWpz_0LqHlp7XfkddTtvdb6ZeORLN8UnYgo0UuNFvXrHakV_BlXyb_XI';
 const GIDS = {
-  "Введение":0,"Правила":1943023590,"Игры участников":1680403255,"Общий прогресс":229494004,"Статистика":498322058,
+  "Введение":0,"Правила":1943023590,"Игры участников":168003255,"Общий прогресс":229494004,"Статистика":498322058,
   "billymoore":1138059924,"blyy":1959229150,"Waff1e":884474143,"BlackSecret":1106107494,"marixyana_":2012264950,
   "zo_0m23":24435965,"mozyakin":117799979,"Bulkich":1530541297,"uebergoose":1420315228,"fuurooshaa":2118018073,
   "mden1ss":251270529,"aut0mat1clol":26905011,"nimaruichi_":853685662,"WenKlase":1414740397,"UNIKNOW":930194743,
@@ -69,21 +69,9 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function saveCache(){
   try {
-    const cache = {
-      ts: Date.now(),
-      version: CACHE_KEY,
-      PLAYER_GAMES,
-      STATS,
-      STATS_TOTAL,
-      PROGRESS_SEGMENTS,
-      PROGRESS,
-      liveOk
-    };
+    const cache = { ts: Date.now(), version: CACHE_KEY, PLAYER_GAMES, STATS, STATS_TOTAL, PROGRESS_SEGMENTS, PROGRESS, liveOk };
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    console.log('Cache saved', new Date(cache.ts).toLocaleString());
-  } catch(e) {
-    console.warn('Cache save failed:', e);
-  }
+  } catch(e) { console.warn('Cache save failed:', e); }
 }
 
 function loadCache(){
@@ -91,12 +79,8 @@ function loadCache(){
     const raw = localStorage.getItem(CACHE_KEY);
     if(!raw) return null;
     const cache = JSON.parse(raw);
-    if(cache.version !== CACHE_KEY) return null;
-    return cache;
-  } catch(e) {
-    console.warn('Cache load failed:', e);
-    return null;
-  }
+    return cache.version === CACHE_KEY ? cache : null;
+  } catch(e) { console.warn('Cache load failed:', e); return null; }
 }
 
 function applyCache(cache){
@@ -122,87 +106,13 @@ function cacheAgeText(cache){
   return `${Math.floor(age/86400000)} дн назад`;
 }
 
-/* ===== FALLBACK DATA (emergency only) ===== */
-const PLAYER_GAMES_FALLBACK = {
-"billymoore":["Project Wingman","Ace Combat 7","Bomb Rush Cyberfunk","A Hat in Time","Thief: Gold","Legacy of Kain Soul Reaver 1 2 Remastered","Fallout: New Vegas","My Summer Car","Titanfall 2","Metal Gear Solid V: The Phantom Pain"],
-"blyy":["Left 4 Dead 2","Borderlands 2","Far Cry 3","Darksiders III","Call of Juarez: Gunslinger","Battlefield 4","Serious Sam II","Silent Hill 3","Resident Evil 0","Saw: The Videogame"],
-"Waff1e":["Bionicle Heroes","Dead Rising 2","Do Not Feed the Monkeys","Flywrench","Hob","Lunacid","Pit People","SteamWorld Dig 2","The Evil Within","Warhammer 40,000: Mechanicus"],
-"BlackSecret":["System Shock Remake","Chaser","Chrome","Immortal Redneck","Arcania: Gothic 4","Project Warlock","Selaco","Return of the Obra Dinn","Wolfenstein (2009)","Phantom Fury"],
-"marixyana_":["Resident Evil HD Remaster","Doom Eternal","Return to Castle Wolfenstein / RealRTCW","Harry Potter and the Chamber of Secrets","Pacific Drive","NieR Replicant ver.1.22474487139","Portal 2","Outer Wilds","The Walking Dead: Season 1","Disco Elysium"],
-"zo_0m23":["Intravenous","Webbed","Jack Move","Metro Gravity","The Entropy Centre","Solar Ash","Dandara: Trials of Fear Edition","Lorn's Lure","Sekiro: Shadows Die Twice","Artis Impact"],
-"mozyakin":["Cry of Fear","Dark Souls: Remastered","Far Cry 4","Red Orchestra 2: Heroes of Stalingrad","LEGO Harry Potter: Years 1–4","LEGO Harry Potter: Years 5–7","LEGO Indiana Jones: The Original Adventures","LEGO Indiana Jones 2: The Adventure Continues","Metro Exodus","S.T.A.L.K.E.R.: Clear Sky"],
-"Bulkich":["DmC: Devil May Cry","RUINER","Bomb Rush Cyberfunk","The Typing of the Dead","Hotline Miami 2: Wrong Number","Katana Zero","Killer7","Bayonetta","The Saboteur","Killer Is Dead"],
-"uebergoose":["Brother 2: Back to America","Gulman 3D","2025: Битва за Родину","Патриот: Демократизация / Patriot: DemocratiZation","Чернобыль: Зона отчуждения / Chernobyl: Terrorist Attack","Antikiller","Параграф 78. Жребий брошен / Paragraph 78","Московский снайпер / Sniper: The Manhunter / Приказано уничтожить. Снайпер. Московская миссия","Replicore","Twin Sector"],
-"fuurooshaa":["Sonic Adventure DX","Sonic Adventure 2","Sonic Mania","OneShot","Heavy Rain","Trine Enchanted Edition","Stray","Mirror's Edge","Dishonored","Aperture Tag: The Paint Gun Testing Initiative"],
-"mden1ss":["Pseudoregalia","Castle Crashers","DELTARUNE","The Stanley Parable: Ultra Deluxe","I Am Your Beast","Sonic Generations","DARK SOULS™ II: Scholar of the First Sin","DEADBOLT","Portal","Transistor"],
-"aut0mat1clol":["Daikatana","Grand Theft Auto: San Andreas","BRAZILIAN DRUG DEALER 3: I OPENED A PORTAL TO HELL IN THE FAVELA TRYING TO REVIVE MIT AIA I NEED TO CLOSE IT","Celeste","Timespinner","Doom 3","Braid","BRUTAL JOHN 2","Counter-Strike: Condition Zero Deleted Scenes","WRC 7: World Rally Championship"],
-"nimaruichi_":["Outer Wilds","Lorelei and the Laser Eyes","Signalis","Observer","Devil May Cry 3: Dante's Awakening","Easy Delivery Co.","Beyond: Two Souls","Command & Conquer: Generals - Zero Hour","Spore","Spider-Man: Shattered Dimensions"],
-"WenKlase":["Minecraft","The Talos Principle / Reawakened","AMID EVIL","Neon White","The Talos Principle II","Driver: San Francisco","Joe Dever's Lone Wolf HD Remastered","Thief II: The Metal Age","Grand Theft Auto V","Hotline Miami"],
-"UNIKNOW":["Camelot 10000CE","Everhood","Farm Frenzy 3","Zuma Deluxe","Descenders","Shapez 2: Factory","Hot Lava","Stardew Valley","WEBFISHING","Moonlighter"],
-"Zawardo10":["Shrek 2: The Game","Breathedge","Dying Light","Night in the Woods","Alien Shooter","Deponia","Oxenfree","The Forest","Duke Nukem Forever","SOBR Fighter (2007)"],
-"bloods1de":["Detroit: Become Human","Sleeping Dogs","Alan Wake","Bully: Scholarship Edition","Mafia II","South Park: The Stick of Truth","Gears of War","I Wanna Be The Guy","Batman: Arkham Asylum","Red Faction: Guerrilla"],
-"boldnessman":["Mogeko Castle","Edna & Harvey: The Breakout","Chpam-blin-mdam-the-game","Medal of Honor: Allied Assault","Assassin's Creed IV: Black Flag","Will Rock","Darkestville Castle","Red Comrades Save the Galaxy","Quake III Arena","DuckTales: Remastered"],
-"Soupsake":["Transformers: War for Cybertron","Winx Club","Blair Witch Volume I: Rustin Parr","Alpha Protocol","Need for Speed: Carbon","The Punisher","Brothers in Arms: Hell's Highway","Harry Potter and the Prisoner of Azkaban","Remember Me","Assassin's Creed Unity"],
-"Destiny":["Gloomwood","Dusk","UNBEATABLE","Rain World","Bugsnax","Slime Rancher 2","Rungore","Besiege","Rayman Legends","Inscryption"],
-"Бeгимот":["Knock-knock","Omori","Spore","Sally Face","Five Nights at Freddy's","Spider-Man Web of Shadows","Hello Neighbor","Fran Bow","Devil May Cry 3: Dante's Awakening","Devil May Cry 2"]
-};
-
-const STATS_FALLBACK = [
-{player:"zo_0m23",stage:14,done:16,prog:1,drop:2,reroll:3},
-{player:"BlackSecret",stage:9,done:10,prog:1,drop:1,reroll:0},
-{player:"marixyana_",stage:8,done:9,prog:1,drop:1,reroll:4},
-{player:"UNIKNOW",stage:8,done:8,prog:1,drop:0,reroll:0},
-{player:"WenKlase",stage:6,done:6,prog:1,drop:0,reroll:1},
-{player:"Soupsake",stage:6,done:6,prog:1,drop:0,reroll:0},
-{player:"Бeгимот",stage:6,done:6,prog:1,drop:0,reroll:0},
-{player:"fuurooshaa",stage:5,done:7,prog:1,drop:2,reroll:0},
-{player:"mden1ss",stage:5,done:6,prog:1,drop:1,reroll:12},
-{player:"mozyakin",stage:5,done:5,prog:1,drop:0,reroll:2},
-{player:"billymoore",stage:4,done:4,prog:1,drop:0,reroll:1},
-{player:"aut0mat1clol",stage:4,done:4,prog:1,drop:0,reroll:4},
-{player:"nimaruichi_",stage:3,done:3,prog:1,drop:0,reroll:2},
-{player:"Zawardo10",stage:2,done:3,prog:1,drop:1,reroll:3},
-{player:"blyy",stage:2,done:2,prog:1,drop:0,reroll:1},
-{player:"uebergoose",stage:1,done:2,prog:1,drop:1,reroll:1},
-{player:"Waff1e",stage:1,done:1,prog:1,drop:0,reroll:0},
-{player:"Destiny",stage:1,done:1,prog:1,drop:0,reroll:0},
-{player:"Bulkich",stage:0,done:0,prog:1,drop:0,reroll:0},
-{player:"bloods1de",stage:-1,done:3,prog:1,drop:4,reroll:9},
-{player:"boldnessman",stage:-3,done:1,prog:1,drop:4,reroll:3},
-];
-const STATS_TOTAL_FALLBACK = {stage:86, done:103, drop:17, reroll:46};
-
-const PROGRESS_SEGMENTS_FALLBACK = ["75-100 (2000-2005)","Игра участника","Игра участника","Игра участника","Игра участника","Игра участника","Игра участника","75-100 (2006-2011)","Игра участника","Игра участника","Игра участника","Игра участника","Игра участника","Игра участника","75-100 (2012-2018)","Игра участника","Игра участника","Игра участника","Игра участника","Игра участника","Игра участника","80-100","Игра участника","Игра участника","Игра участника"];
-const PROGRESS_FALLBACK = {
-"billymoore":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"blyy":["Пройдено!","Пройдено!","В процессе"],
-"Waff1e":["Пройдено!","В процессе"],
-"BlackSecret":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"marixyana_":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"zo_0m23":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"mozyakin":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"Bulkich":["В процессе"],
-"uebergoose":["Пройдено!","В процессе"],
-"fuurooshaa":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"mden1ss":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!"],
-"aut0mat1clol":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"nimaruichi_":["Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"WenKlase":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"UNIKNOW":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"Zawardo10":["Пройдено!","Пройдено!","В процессе"],
-"bloods1de":["В процессе"],
-"boldnessman":["В процессе"],
-"Soupsake":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"],
-"Destiny":["Пройдено!","В процессе"],
-"Бeгимот":["Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","Пройдено!","В процессе"]
-};
-
+/* ===== PLACEHOLDER TEXT (no cache, no live) ===== */
 const RULES_TOOLS_HTML = `<p class="muted" style="margin-top:14px">Инструменты: <a href="https://howlongtobeat.com/" target="_blank" rel="noopener">HowLongToBeat</a> • <a href="https://wheelofnames.com/" target="_blank" rel="noopener">Wheel of Names</a> • <a href="https://gamegauntlets.com/" target="_blank" rel="noopener">Steam Game Gauntlet</a> • <a href="https://livesplit.org/" target="_blank" rel="noopener">LiveSplit</a> • <a href="https://rutracker.org/" target="_blank" rel="noopener">RuTracker.org</a> • <a href="https://sourceforge.net/projects/dxwnd/" target="_blank" rel="noopener">DxWnd</a></p>`;
 
 const RULES_FALLBACK_HTML = `<div class="rules-list">
 <div class="rule-item">1. Порядок игр не подлежит тасовке.</div>
-<div class="rule-item">2. Участнику дается 5 рероллов игр, которые он может использовать на игры, которые уже были когда-то пройдены.</div>
-<div class="rule-item">3. Лимит на время прохождение игры 33 часа. Если игра длиннее — легитимный реролл.</div>
+<div class="rule-item">2. Участнику даётся 5 рероллов игр, которые он может использовать на уже пройденные игры.</div>
+<div class="rule-item">3. Лимит на прохождение игры — 33 часа. Если длиннее — легитимный реролл.</div>
 <div class="rule-item">4. Игры участников — 10 игр, лимит 33 часа и остальные правила ивента.</div>
 <div class="rule-item">5. Прокрут колеса должен быть показан. Иначе ролл нелегитимный.</div>
 <div class="rule-item">6. <b>Игра считается пройденной:</b> а) финальные титры; б) основная ветка сюжета; в) если предыдущие невыполнимы — после уровня, где начинается зацикливание.</div>
@@ -210,9 +120,18 @@ const RULES_FALLBACK_HTML = `<div class="rules-list">
 <div class="rule-item">8. Строго рероллятся игры, для прохождения которых необходимо побить Score.</div>
 <div class="rule-item">9. Если игра слишком сложная / непроходимая — можно дропнуть. Участник откатывается на предыдущий отрезок.</div>
 <div class="rule-item">10. Уровень сложности — выше самого первого. Если всего 2 уровня — любой.</div>
-<div class="rule-item">11. Учет времени — внутриигровое. Старт с «Новая игра», стоп по условиям из п.6.</div>
+<div class="rule-item">11. Учёт времени — внутриигровое. Старт с «Новая игра», стоп по условиям из п.6.</div>
 <div class="rule-item">12. Все спорные моменты решаются коллегиально.</div>
 </div>` + RULES_TOOLS_HTML;
+
+// Generic placeholders — show "Loading…" instead of hardcoded game lists
+const PLACEHOLDER_GAMES = {};
+PLAYERS.forEach(p => { PLACEHOLDER_GAMES[p] = ['Загрузка…']; });
+const PLACEHOLDER_STATS = PLAYERS.map(p => ({ player: p, stage: '—', done: '—', prog: '—', drop: '—', reroll: '—' }));
+const PLACEHOLDER_STATS_TOTAL = { stage: '—', done: '—', drop: '—', reroll: '—' };
+const PLACEHOLDER_SEGMENTS = ['Отрезок 1', 'Отрезок 2', 'Отрезок 3'];
+const PLACEHOLDER_PROGRESS = {};
+PLAYERS.forEach(p => { PLACEHOLDER_PROGRESS[p] = ['—', '—', '—']; });
 
 /* ===== STATE ===== */
 let PLAYER_GAMES = {};
@@ -278,57 +197,41 @@ async function fetchCsv(gid, timeoutMs=6000){
   } catch(e){ clearTimeout(t); throw e; }
 }
 
-// Лист "Игры участников" — таблица разбита на блоки по 3 участника.
-// Сканируем весь лист, собираем все найденные игры, до 10 на игрока.
 async function loadGamesPool(){
   try{
     const rows = await fetchCsv(GIDS["Игры участников"]);
     const collected = {}; PLAYERS.forEach(p=>collected[p]=[]);
-    // ищем все строки-заголовки с никами
     for(let r=0; r<rows.length; r++){
       const header = rows[r].map(c=> (c||'').trim());
       const foundPlayers = header.map((h,i)=> PLAYERS.includes(h) ? {name:h, col:i} : null).filter(Boolean);
       if(foundPlayers.length === 0) continue;
-      // читаем следующие ~15 строк как список игр
       for(let gr = r+1; gr < rows.length && gr < r+20; gr++){
         const grow = rows[gr];
-        // если в строке опять встретились ники — стоп, это следующий блок
         if(grow.some(c => PLAYERS.includes((c||'').trim()))) break;
         let anyGame = false;
         for(const {name, col} of foundPlayers){
           if(collected[name].length >= 10) continue;
           const val = (grow[col] || '').trim();
           if(val && val !== '...' && !val.startsWith('...')){
-            // избегаем дублей
-            if(!collected[name].includes(val)){
-              collected[name].push(val);
-              anyGame = true;
-            }
+            if(!collected[name].includes(val)){ collected[name].push(val); anyGame = true; }
           }
         }
-        // если 2 пустые строки подряд — конец блока
         if(!anyGame){
           const nextRow = rows[gr+1] || [];
-          const nextEmpty = nextRow.every(c => !(c||'').trim());
-          if(nextEmpty) break;
+          if(nextRow.every(c => !(c||'').trim())) break;
         }
       }
     }
-    // обрезаем до 10, проверяем заполненность
     let filledCount = 0;
     for(const p of PLAYERS){
       collected[p] = collected[p].slice(0,10);
       if(collected[p].length >= 5) filledCount++;
     }
     if(filledCount >= 10){
-      // мержим с fallback — если у кого-то <10 игр, добираем
+      // Top up with placeholders if someone has < 10
       for(const p of PLAYERS){
         const live = collected[p] || [];
-        const fb = PLAYER_GAMES_FALLBACK[p] || [];
-        while(live.length < 10 && fb[live.length]) {
-          if(!live.includes(fb[live.length])) live.push(fb[live.length]);
-          else break;
-        }
+        while(live.length < 10) live.push('Ещё не указано');
         collected[p] = live.slice(0,10);
       }
       PLAYER_GAMES = collected;
@@ -355,9 +258,7 @@ async function loadStats(){
     if(out.length){ STATS = out; liveOk.stats = true; }
     const last = rows.find(r=> (r[1]||'').includes('Общее'));
     if(last){ STATS_TOTAL = {stage:last[2], done:last[3], drop:last[5], reroll:last[6]} }
-  }catch(e){
-    console.warn('stats load failed', e);
-  }
+  }catch(e){ console.warn('stats load failed', e); }
   renderStats();
 }
 
@@ -376,9 +277,7 @@ async function loadProgress(){
       }
       if(Object.keys(prog).length){ PROGRESS = prog; liveOk.progress = true; }
     }
-  }catch(e){
-    console.warn('progress load failed', e);
-  }
+  }catch(e){ console.warn('progress load failed', e); }
   renderProgress();
 }
 
@@ -389,7 +288,6 @@ async function loadRules(){
     rows.forEach(r=>{ r.forEach(cell=>{
       if(!cell) return;
       const t = cell.trim();
-      // нумерация уже в тексте таблицы, просто берём осмысленные строки
       if(t.length>15 && !t.includes('«') && !t.includes('HowLongToBeat')) ruleLines.push(t);
     })});
     const uniq = [...new Set(ruleLines)].filter(t=>t.length>15).slice(0,40);
@@ -522,15 +420,12 @@ function spinWheel(){
   spinning = true;
   const winnerIndex = Math.floor(Math.random()*list.length);
   lastWinner = winnerIndex;
-
-  // --- fix: всегда крутим вперёд ---
   const segmentAngle = 360 / list.length;
   const currentDeg = currentAngle * 180 / Math.PI;
   const currentMod = ((currentDeg % 360) + 360) % 360;
   const winnerAngle = 360 - winnerIndex * segmentAngle - segmentAngle/2;
   const delta = (winnerAngle - currentMod + 360) % 360;
   const targetDeg = currentDeg + 360 * 5 + delta;
-
   const start = performance.now();
   const duration = 2600;
   const startAngle = currentDeg;
@@ -659,9 +554,9 @@ window.clearCache = function(){
 /* ===== BOOT ===== */
 async function boot(isRefresh=false){
   const cached = loadCache();
-  
+
   if(!isRefresh && cached && !isCacheExpired(cached)){
-    // Fast path: use cache immediately
+    // Fast path: use fresh cache
     applyCache(cached);
     setLiveStatus(`Кэш (${cacheAgeText(cached)})`, 'warn');
     renderStats();
@@ -670,13 +565,9 @@ async function boot(isRefresh=false){
     renderPlayersGrid();
     initWheel();
     const rc = document.getElementById('rulesContent');
-    if(cached.liveOk?.rules) {
-      // rules were live last time, keep them
-    } else {
-      if(rc) rc.innerHTML = RULES_FALLBACK_HTML;
-    }
+    if(!cached.liveOk?.rules && rc) rc.innerHTML = RULES_FALLBACK_HTML;
   } else if(!isRefresh && cached) {
-    // Stale cache: use it but mark as outdated
+    // Stale cache: use but mark
     applyCache(cached);
     setLiveStatus(`Кэш устарел (${cacheAgeText(cached)})`, 'warn');
     renderStats();
@@ -685,12 +576,12 @@ async function boot(isRefresh=false){
     renderPlayersGrid();
     initWheel();
   } else if(!isRefresh) {
-    // First visit ever: use fallbacks
-    PLAYER_GAMES = {...PLAYER_GAMES_FALLBACK};
-    STATS = [...STATS_FALLBACK];
-    STATS_TOTAL = {...STATS_TOTAL_FALLBACK};
-    PROGRESS_SEGMENTS = [...PROGRESS_SEGMENTS_FALLBACK];
-    PROGRESS = JSON.parse(JSON.stringify(PROGRESS_FALLBACK));
+    // First visit, no cache: use generic placeholders
+    PLAYER_GAMES = JSON.parse(JSON.stringify(PLACEHOLDER_GAMES));
+    STATS = JSON.parse(JSON.stringify(PLACEHOLDER_STATS));
+    STATS_TOTAL = {...PLACEHOLDER_STATS_TOTAL};
+    PROGRESS_SEGMENTS = [...PLACEHOLDER_SEGMENTS];
+    PROGRESS = JSON.parse(JSON.stringify(PLACEHOLDER_PROGRESS));
     renderStats();
     renderProgress();
     renderIntroStats();
@@ -701,44 +592,32 @@ async function boot(isRefresh=false){
   }
 
   // Always try to refresh live data in background
-  const results = await Promise.allSettled([
-    loadGamesPool(),
-    loadStats(),
-    loadProgress(),
-    loadRules()
-  ]);
+  await Promise.allSettled([ loadGamesPool(), loadStats(), loadProgress(), loadRules() ]);
 
   // Save successful live data to cache
-  const liveCount = Object.values(liveOk).filter(Boolean).length;
-  if(liveCount > 0){
-    saveCache();
-  }
+  if(Object.values(liveOk).some(Boolean)) saveCache();
 
   renderIntroStats();
   renderPlayersGrid();
 
   const okCount = Object.values(liveOk).filter(Boolean).length;
-  if(okCount >= 3){ 
-    setLiveStatus('Live ✓', 'live'); 
-  } else if(okCount > 0){ 
-    setLiveStatus('Live частично', 'warn'); 
-  } else if(cached) { 
-    setLiveStatus(`Оффлайн • кэш ${cacheAgeText(cached)}`, 'offline'); 
-  } else { 
-    setLiveStatus('Оффлайн • фоллбек', 'offline'); 
+  if(okCount >= 3){
+    setLiveStatus('Live ✓', 'live');
+  } else if(okCount > 0){
+    setLiveStatus('Live частично', 'warn');
+  } else if(cached){
+    setLiveStatus(`Оффлайн • кэш ${cacheAgeText(cached)}`, 'offline');
+  } else {
+    setLiveStatus('Оффлайн • загрузка…', 'offline');
   }
-  
+
   const note = document.getElementById('liveNote');
-  if(note) {
-    if(okCount) {
-      note.textContent = `Live: загружено ${okCount}/4 разделов.`;
-    } else if(cached) {
-      note.textContent = `Оффлайн — показаны кэшированные данные (${cacheAgeText(cached)}). Кэш обновится при подключении.`;
-    } else {
-      note.textContent = 'Оффлайн — показаны встроенные данные.';
-    }
+  if(note){
+    if(okCount) note.textContent = `Live: загружено ${okCount}/4 разделов.`;
+    else if(cached) note.textContent = `Оффлайн — показаны кэшированные данные (${cacheAgeText(cached)}). Кэш обновится при подключении.`;
+    else note.textContent = 'Оффлайн — показаны placeholder-данные.';
   }
-  
+
   const hash = location.hash;
   if(hash.startsWith('#roll=')){
     const [p, idx] = decodeURIComponent(hash.slice(6)).split(':');
