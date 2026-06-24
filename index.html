@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
 
@@ -69,15 +69,23 @@
   <!-- Игры участников / колесо -->
   <section class="panel" id="panel-games">
     <div class="roulette-wrap">
-      <h2>Игры участников — Колесо Ам Няма</h2>
+      <h2>Колесо Ам Няма</h2>
       <p class="muted" id="gamesSourceNote">Загрузка пула игр…</p>
       
+      <!-- Mode Toggle -->
+      <div class="wheel-mode-toggle">
+        <button class="mode-btn active" data-mode="players" onclick="switchWheelMode('players')">🎲 Колесо игроков</button>
+        <button class="mode-btn" data-mode="games" onclick="switchWheelMode('games')">🎮 Колесо игр</button>
+      </div>
+      
       <div class="roulette-top">
-        <div class="field"><label>Участник</label><select id="playerSelect"></select></div>
+        <div class="field">
+          <label id="selectLabel">Участник</label>
+          <select id="playerSelect"></select>
+        </div>
         <button class="btn" id="spinBtn">Крутить!</button>
-        <button class="btn secondary" onclick="shufflePlayer()">Случайный участник</button>
-        <button class="btn secondary small" onclick="copyWheelLink()">Скопировать ссылку</button>
-        <button class="btn secondary small" onclick="openPlayerProfile(document.getElementById('playerSelect').value)">Профиль →</button>
+        <button class="btn secondary" onclick="shuffleWheel()">Случайный</button>
+        <button class="btn secondary small" id="profileBtn" onclick="openPlayerProfile(document.getElementById('playerSelect').value)">Профиль</button>
       </div>
 
       <div class="wheel-stage">
@@ -86,7 +94,7 @@
           <canvas id="wheel" width="360" height="360"></canvas>
         </div>
         <div>
-          <div class="spin-result" id="spinResult"><div class="big">Выбери участника → Крутить</div><p class="muted">10 игр на каждого</p></div>
+          <div class="spin-result" id="spinResult"><div class="big">Выбери режим колеса ↑</div><p class="muted">Крути, чтобы выбрать</p></div>
           <div class="games-list">
             <table id="gamesTable"><thead><tr><th>#</th><th>Игра</th></tr></thead><tbody></tbody></table>
           </div>
@@ -179,6 +187,6 @@
   Amnyam GEG • Лето 2026 • live-reader для Google Sheets
 </footer>
 
-<script src="app.js?v=7" defer></script>
+<script src="app.js?v=8" defer></script>
 </body>
 </html>

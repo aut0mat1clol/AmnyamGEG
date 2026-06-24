@@ -197,32 +197,22 @@ function setLiveStatus(text, mode=''){
 }
 
 /* ===== LIVE LOADERS ===== */
-async function fetchCsv(gid, timeoutMs=15000, retry=1){
+async function fetchCsv(gid, timeoutMs=12000){
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs);
   try{
-    const url = csvUrl(gid);
-    console.log('Fetching CSV from:', url);
-    const r = await fetch(url, {cache:'no-store', signal: controller.signal});
+    const r = await fetch(csvUrl(gid), {cache:'no-store', signal: controller.signal});
     clearTimeout(t);
-    if(!r.ok) throw new Error(`HTTP ${r.status} for gid=${gid}`);
+    if(!r.ok) throw new Error(r.status);
     const txt = await r.text();
-    if(txt.includes('Page Not Found')||txt.includes('Sorry, unable')||txt.includes('Sign in')) throw new Error(`Sheet not public for gid=${gid}`);
+    if(txt.includes('Page Not Found')||txt.includes('Sorry, unable')) throw new Error('not public');
     return parseCSV(txt);
-  } catch(e){ 
-    clearTimeout(t); 
-    console.error('fetchCsv error:', e.message, 'for gid=', gid);
-    if(e.name === 'AbortError' && retry > 0) {
-      console.log('Retrying... attempts left:', retry);
-      return await fetchCsv(gid, timeoutMs, retry - 1);
-    }
-    throw e; 
-  }
+  } catch(e){ clearTimeout(t); throw e; }
 }
 
 async function loadGamesPool(){
   try{
-    const rows = await fetchCsv(GIDS["Игры участников"], 15000, 2);
+    const rows = await fetchCsv(GIDS["Игры участников"]);
     const collected = {}; PLAYERS.forEach(p=>collected[p]=[]);
     for(let r=0; r<rows.length; r++){
       const header = rows[r].map(c=> (c||'').trim());
@@ -263,8 +253,7 @@ async function loadGamesPool(){
     document.getElementById('gamesSourceNote').textContent = `Пул игр: ${liveOk.games ? 'Google Sheets (live)' : 'кэш'} • ${totalGames} игр`;
   }catch(e){
     console.warn('games pool load failed', e);
-    const note = document.getElementById('gamesSourceNote');
-    if(note) note.textContent = `Пул игр: ошибка загрузки (${e.message}). Используется кэш.`;
+    document.getElementById('gamesSourceNote').textContent = `Пул игр: кэш (${cacheAgeText(loadCache())})`;
   }
   initWheel();
 }
@@ -381,42 +370,136 @@ function renderIntroStats(){
 
 /* ===== WHEEL ===== */
 let wheelInitialized = false;
+let wheelMode = 'players'; // 'players' | 'games'
+let wheelPlayersList = [];
+let wheelGamesList = [];
+let currentWheelPlayer = '';
+let lastWinner = -1;
+let ctx = null;
+let currentAngle = 0;
+let currentSpinner = '';
+
+function switchWheelMode(mode) {
+  wheelMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  
+  const label = document.getElementById('selectLabel');
+  const select = document.getElementById('playerSelect');
+  const note = document.getElementById('gamesSourceNote');
+  
+  if(mode === 'players') {
+    label.textContent = 'Кто крутит';
+    select.innerHTML = '';
+    PLAYERS.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p;
+      o.textContent = p;
+      select.appendChild(o);
+    });
+    currentSpinner = select.value || PLAYERS[0];
+    currentWheelPlayer = currentSpinner;
+    if(note) note.textContent = `Колесо игроков: ${PLAYERS.length} участников`;
+    drawPlayerWheel();
+    updateSpinResult('Выбери участника и крути!', 'Колесо игроков');
+  } else {
+    label.textContent = 'Игрок (чей пул)';
+    // Select is already filled, keep current
+    if(!currentWheelPlayer) currentWheelPlayer = PLAYERS[0];
+    select.value = currentWheelPlayer;
+    if(note) note.textContent = `Колесо игр для ${currentWheelPlayer}`;
+    drawGamesWheel(currentWheelPlayer);
+    updateSpinResult('Крути, чтобы выбрать игру!', `Игры: ${currentWheelPlayer}`);
+  }
+}
+
+function updateSpinResult(mainText, subText) {
+  const sr = document.getElementById('spinResult');
+  if(!sr) return;
+  sr.innerHTML = `<div style="display:flex;align-items:center;gap:10px">${wheelMode==='players'?avatarDiv(currentWheelPlayer):''}<div><div class="big">${mainText}</div><p class="muted">${subText||''}</p></div></div>`;
+}
+
 function initWheel(){
-  const playerSelect = document.getElementById('playerSelect'); if(!playerSelect) return;
+  const canvas = document.getElementById('wheel');
+  if(canvas) ctx = canvas.getContext('2d');
+  
+  const playerSelect = document.getElementById('playerSelect'); 
+  if(!playerSelect) return;
+  
   playerSelect.innerHTML='';
-  PLAYERS.forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; playerSelect.appendChild(o); });
-  playerSelect.onchange = e=> openWheelPlayer(e.target.value);
+  PLAYERS.forEach(p=>{ 
+    const o=document.createElement('option'); 
+    o.value=p; 
+    o.textContent=p; 
+    playerSelect.appendChild(o); 
+  });
+  
+  playerSelect.onchange = async e => {
+    if(wheelMode === 'games') {
+      currentWheelPlayer = e.target.value;
+      drawGamesWheel(currentWheelPlayer);
+      updateSpinResult('Крути, чтобы выбрать игру!', `Игры: ${currentWheelPlayer}`);
+    } else if (wheelMode === 'players') {
+      currentSpinner = e.target.value;
+      currentWheelPlayer = currentSpinner;
+      if (!playerRunCache[currentSpinner] && !preloadingSet.has(currentSpinner)) {
+        await preloadPlayerRuns(currentSpinner);
+      }
+      drawPlayerWheel();
+      updateSpinResult('Выбери участника и крути!', `Колесо для ${currentSpinner}`);
+    }
+  };
+  
   if(!wheelInitialized){
     document.getElementById('spinBtn')?.addEventListener('click', spinWheel);
     wheelInitialized=true;
   }
-  openWheelPlayer(PLAYERS[0]);
+  
+  // Init in players mode
+  wheelMode = 'players';
+  currentWheelPlayer = PLAYERS[0];
+  switchWheelMode('players');
   renderPlayersGrid();
 }
-let currentWheelPlayer = PLAYERS[0];
-let lastWinner = -1;
-function openWheelPlayer(name){
-  currentWheelPlayer = name; lastWinner = -1;
-  const sel = document.getElementById('playerSelect'); if(sel) sel.value = name;
-  renderWheelList(name);
-  const sr = document.getElementById('spinResult');
-  if(sr) sr.innerHTML = `<div style="display:flex;align-items:center;gap:10px"><div class="player-avatar lg">${avatarHtml(name)}</div><div><div class="big">${escapeHtml(name)}</div><p class="muted">Нажми «Крутить!»</p></div></div>`;
+
+function drawPlayerWheel() {
+  let pool = [...PLAYERS];
+  if (currentSpinner && currentSpinner !== 'Все игроки прокручены') {
+    pool = pool.filter(p => p !== currentSpinner);
+    const cached = playerRunCache[currentSpinner];
+    if (cached && cached.runs) {
+      const played = new Set(cached.runs.map(r => r.segment).filter(Boolean));
+      pool = pool.filter(p => !played.has(p));
+    }
+  }
+  wheelPlayersList = pool;
+  if (wheelPlayersList.length === 0) {
+    wheelPlayersList = ['Нет доступных игроков'];
+  }
+  drawWheelGeneric(wheelPlayersList);
 }
-function renderWheelList(name){
-  const tbody = document.querySelector('#gamesTable tbody'); if(!tbody) return;
+
+function drawGamesWheel(playerName) {
+  wheelGamesList = (PLAYER_GAMES[playerName] || []).filter(g => g && g !== '...' && g !== 'Ещё не указано');
+  if(wheelGamesList.length === 0) wheelGamesList = ['Нет игр'];
+  renderGamesTable(playerName);
+  drawWheelGeneric(wheelGamesList);
+}
+
+function renderGamesTable(playerName) {
+  const tbody = document.querySelector('#gamesTable tbody'); 
+  if(!tbody) return;
   tbody.innerHTML='';
-  (PLAYER_GAMES[name]||[]).forEach((g,i)=>{
+  (PLAYER_GAMES[playerName]||[]).forEach((g,i)=>{
     const tr=document.createElement('tr');
-    if(i===lastWinner) tr.className='winner';
+    if(wheelMode==='games' && i===lastWinner) tr.className='winner';
     tr.innerHTML=`<td>${i+1}</td><td>${escapeHtml(g)}</td>`;
     tbody.appendChild(tr);
   });
-  drawWheel(PLAYER_GAMES[name]||[]);
 }
-const canvas = document.getElementById('wheel');
-const ctx = canvas ? canvas.getContext('2d') : null;
-let currentAngle = 0;
-function drawWheel(items){
+
+function drawWheelGeneric(items) {
   if(!ctx) return;
   const n = items.length || 10;
   const cx=180, cy=180, r=170;
@@ -429,20 +512,25 @@ function drawWheel(items){
     ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
     ctx.save(); ctx.translate(cx,cy); ctx.rotate(a0 + Math.PI/n);
     ctx.textAlign='right'; ctx.fillStyle='#1e3b0f'; ctx.font='bold 12px Nunito';
-    ctx.fillText((items[i]||'').slice(0,28), r-12, 4); ctx.restore();
+    const label = wheelMode==='players' ? items[i] : items[i];
+    ctx.fillText((label||'').slice(0,28), r-12, 4); ctx.restore();
   }
   ctx.beginPath(); ctx.arc(cx,cy,42,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
   ctx.fillStyle='#2b6412'; ctx.font='900 13px Nunito'; ctx.textAlign='center'; ctx.fillText('АМ НЯМ', cx, cy+4);
 }
+
 let spinning = false;
 function spinWheel(){
   if(spinning) return;
-  const name = currentWheelPlayer;
-  const list = PLAYER_GAMES[name] || [];
-  if(!list.length) return;
   spinning = true;
+  
+  const list = wheelMode==='players' ? wheelPlayersList : wheelGamesList;
+  if(!list.length || list[0]==='Нет игр' || list[0]==='Все игроки прокручены') { spinning=false; return; }
+  
   const winnerIndex = Math.floor(Math.random()*list.length);
   lastWinner = winnerIndex;
+  
+  // Animation
   const segmentAngle = 360 / list.length;
   const currentDeg = currentAngle * 180 / Math.PI;
   const currentMod = ((currentDeg % 360) + 360) % 360;
@@ -452,30 +540,67 @@ function spinWheel(){
   const start = performance.now();
   const duration = 2600;
   const startAngle = currentDeg;
-  function easeOut(t){ return 1 - Math.pow(1-t,3) }
+  
+  function easeOut(t){ return 1 - Math.pow(1-t,3); }
   function frame(now){
     const t = Math.min(1, (now-start)/duration);
     const deg = startAngle + (targetDeg - startAngle) * easeOut(t);
     currentAngle = deg * Math.PI/180;
-    drawWheel(list);
-    if(t<1){ requestAnimationFrame(frame)} else {
+    drawWheelGeneric(list);
+    if(t<1){ requestAnimationFrame(frame); } 
+    else {
       spinning=false;
-      renderWheelList(name);
-      const game = list[winnerIndex];
-      const sr = document.getElementById('spinResult');
-      if(sr) sr.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div class="player-avatar">${avatarHtml(name)}</div><div style="font-size:13px;color:#4a7c27;font-weight:800">${escapeHtml(name)}</div></div>
-        <div class="big">${escapeHtml(game)}</div>
-        <span class="tag">Выпало #${winnerIndex+1}</span><span class="tag">Amnyam GEG</span>`;
-      history.replaceState(null,'','#roll='+encodeURIComponent(name)+':'+winnerIndex);
+      const winner = list[winnerIndex];
+      
+      if(wheelMode === 'players') {
+        // Switched to games mode automatically
+        currentWheelPlayer = winner;
+        document.getElementById('playerSelect').value = winner;
+        switchWheelMode('games');
+        updateSpinResult(`Выпал: ${winner}`, 'Теперь крути колесо игр!');
+      } else {
+        // Game selected
+        updateSpinResult(`Выпала игра:`, winner);
+        renderGamesTable(currentWheelPlayer);
+        // Highlight winner in table
+        const rows = document.querySelectorAll('#gamesTable tbody tr');
+        if(rows[winnerIndex]) rows[winnerIndex].classList.add('winner');
+      }
     }
   }
   requestAnimationFrame(frame);
 }
-function shufflePlayer(){ openWheelPlayer(PLAYERS[Math.floor(Math.random()*PLAYERS.length)]) }
-function openWheelFor(name){ showPanel('games'); openWheelPlayer(name); }
+
+function shuffleWheel(){ 
+  if(wheelMode === 'players') {
+    const rand = PLAYERS[Math.floor(Math.random()*PLAYERS.length)];
+    document.getElementById('playerSelect').value = rand;
+    currentSpinner = rand;
+    currentWheelPlayer = rand;
+    if (!playerRunCache[currentSpinner] && !preloadingSet.has(currentSpinner)) {
+      preloadPlayerRuns(currentSpinner).then(() => drawPlayerWheel());
+    } else {
+      drawPlayerWheel();
+    }
+  } else {
+    if(!currentWheelPlayer) currentWheelPlayer = PLAYERS[0];
+    // Already on games mode, just redraw
+    drawGamesWheel(currentWheelPlayer);
+  }
+}
+
+function openWheelFor(name){ 
+  showPanel('games'); 
+  wheelMode = 'games';
+  currentWheelPlayer = name;
+  switchWheelMode('games'); 
+}
+
+// Copy link updated
 function copyWheelLink(){
-  const url = location.origin + location.pathname + '#roll=' + encodeURIComponent(currentWheelPlayer) + ':' + lastWinner;
+  const mode = wheelMode;
+  const target = mode==='players' ? 'all' : currentWheelPlayer;
+  const url = location.origin + location.pathname + '#wheel=' + mode + ':' + encodeURIComponent(target) + ':' + lastWinner;
   navigator.clipboard.writeText(url).then(()=>alert('Ссылка скопирована!')).catch(()=>prompt('Скопируй:', url));
 }
 
@@ -539,7 +664,9 @@ async function loadPlayerRun(name, force=false){
       runs.push({ game, status: (r[ci.status]||'').trim(), segment: (r[ci.segment]||'').trim(), time: (r[ci.time]||'').trim(), comment: (r[ci.comment]||'').trim(), score: (r[ci.score]||'').trim() });
       if(runs.length>60) break;
     }
-    const data = {runs, live:true};
+    let totalTime = '';
+    for(let i=0;i<Math.min(4, rows.length); i++){ const m = rows[i].join(' ').match(/(\d+:\d+:\d+)/); if(m){ totalTime = m[1]; break;} }
+    const data = {runs, totalTime, live:true};
     playerRunCache[name] = data;
     renderRunTable(data);
   }catch(e){
@@ -548,36 +675,60 @@ async function loadPlayerRun(name, force=false){
 }
 function renderRunTable(data){
   const tbody = document.querySelector('#runTable tbody'); if(!tbody) return;
-  if(!data.runs.length){ tbody.innerHTML='<tr><td colspan="7" class="muted">Пока пусто</td></tr>'; return; }
-  
-  // Show only games that have a status filled in (not empty, not "...", not "—")
-  const activeRuns = data.runs.filter(run => {
-    const st = (run.status||'').trim();
-    // Keep if status is filled and not just dots/dash
-    return st && st !== '...' && st !== '—' && st !== '-';
-  });
-  
-  // If no active runs, show message
-  if(activeRuns.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">Нет игр со статусом (заполни статус в таблице)</td></tr>';
-    return;
-  }
-  
-  tbody.innerHTML = activeRuns.map((run,i)=>{
+  if(!data.runs.length){ tbody.innerHTML='<tr><td colspan="7" class="muted">Пока пусто</td></tr>'; return;}
+  tbody.innerHTML = data.runs.map((run,i)=>{
     const st = (run.status||'').toLowerCase();
     let cls='s-other', label = run.status || '—';
     if(st.includes('пройден')){cls='s-done'}
     else if(st.includes('процесс')){cls='s-prog'}
     else if(st.includes('дроп')){cls='s-drop'}
-    else if(st.includes('реролл')){cls='s-reroll'}
+    else if(st.includes('рерол')){cls='s-reroll'}
     return `<tr><td>${i+1}</td><td><b>${escapeHtml(run.game)}</b></td><td><span class="status-badge ${cls}">${escapeHtml(label)}</span></td><td>${escapeHtml(run.segment)}</td><td class="run-time">${escapeHtml(run.time)}</td><td class="run-score">${escapeHtml(run.score)}</td><td class="run-comment">${escapeHtml(run.comment).slice(0,380)}</td></tr>`;
   }).join('');
+  if(data.totalTime){ const ps = document.getElementById('pSubtitle'); if(ps && !ps.textContent.includes('Общее время')) ps.textContent += ` • Общее время: ${data.totalTime}`; }
+}
+
+const preloadingSet = new Set();
+
+async function preloadPlayerRuns(name) {
+  if (playerRunCache[name] || preloadingSet.has(name)) return;
+  preloadingSet.add(name);
+  try {
+    const rows = await fetchCsv(GIDS[name], 12000);
+    let hRow = -1;
+    for (let i = 0; i < Math.min(8, rows.length); i++) {
+      const r = rows[i].map(c => (c || '').toLowerCase());
+      if (r.some(x => x.includes('игра')) && r.some(x => x.includes('статус'))) { hRow = i; break; }
+    }
+    if (hRow === -1) hRow = 1;
+    const header = rows[hRow].map(c => (c || '').toLowerCase());
+    const col = keys => { for (const k of keys) { const idx = header.findIndex(h => h.includes(k)); if (idx !== -1) return idx; } return -1; };
+    const ci = { game: col(['игра', 'game']), status: col(['статус']), segment: col(['отрезок', 'segment']), time: col(['время', 'time']), comment: col(['комментар', 'comment']), score: col(['оценк', 'score']) };
+    const runs = [];
+    for (let i = hRow + 1; i < rows.length; i++) {
+      const r = rows[i]; const game = (r[ci.game] || '').trim();
+      if (!game || game === '...' || game.startsWith('...')) continue;
+      runs.push({ game, status: (r[ci.status] || '').trim(), segment: (r[ci.segment] || '').trim(), time: (r[ci.time] || '').trim(), comment: (r[ci.comment] || '').trim(), score: (r[ci.score] || '').trim() });
+      if (runs.length > 60) break;
+    }
+    let totalTime = '';
+    for (let i = 0; i < Math.min(4, rows.length); i++) { const m = rows[i].join(' ').match(/(\d+:\d+:\d+)/); if (m) { totalTime = m[1]; break; } }
+    playerRunCache[name] = { runs, totalTime, live: true };
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      console.warn('preloadPlayerRuns timeout', name);
+    } else {
+      console.warn('preloadPlayerRuns failed', e);
+    }
+  } finally {
+    preloadingSet.delete(name);
+  }
 }
 
 /* expose */
 window.openPlayerProfile = openPlayerProfile;
 window.goBackFromProfile = goBackFromProfile;
-window.shufflePlayer = shufflePlayer;
+window.shuffleWheel = shuffleWheel;
 window.copyWheelLink = copyWheelLink;
 window.openWheelFor = openWheelFor;
 window.clearCache = function(){
@@ -589,80 +740,49 @@ window.clearCache = function(){
 async function boot(isRefresh=false){
   const cached = loadCache();
 
-  // Always show cached data immediately for speed
-  if(cached && !isCacheExpired(cached)) {
+  if(!isRefresh && cached && !isCacheExpired(cached)){
     applyCache(cached);
     setLiveStatus(`Кэш (${cacheAgeText(cached)})`, 'warn');
-  } else if(cached) {
+    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
+    const rc = document.getElementById('rulesContent');
+    if(!cached.liveOk?.rules && rc) rc.innerHTML = RULES_FALLBACK_HTML;
+  } else if(!isRefresh && cached) {
     applyCache(cached);
     setLiveStatus(`Кэш устарел (${cacheAgeText(cached)})`, 'warn');
-  } else {
-    // No cache - show placeholders
+    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
+  } else if(!isRefresh) {
     PLAYER_GAMES = JSON.parse(JSON.stringify(PLACEHOLDER_GAMES));
     STATS = JSON.parse(JSON.stringify(PLACEHOLDER_STATS));
     STATS_TOTAL = {...PLACEHOLDER_STATS_TOTAL};
     PROGRESS_SEGMENTS = [...PLACEHOLDER_SEGMENTS];
     PROGRESS = JSON.parse(JSON.stringify(PLACEHOLDER_PROGRESS));
-    setLiveStatus('Загрузка...', 'warn');
-  }
-  
-  // Render immediately with cached/placeholder data
-  renderStats(); 
-  renderProgress(); 
-  renderIntroStats(); 
-  renderPlayersGrid(); 
-  initWheel();
-  
-  const rc = document.getElementById('rulesContent');
-  if(rc && !(cached && cached.liveOk && cached.liveOk.rules)) {
-    rc.innerHTML = RULES_FALLBACK_HTML;
+    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
+    const rc = document.getElementById('rulesContent'); if(rc) rc.innerHTML = RULES_FALLBACK_HTML;
+    setLiveStatus('Первый запуск…', 'warn');
   }
 
-  // Now load fresh data in parallel (non-blocking)
-  setLiveStatus('Обновление данных...', 'warn');
-  
-  const promises = [
-    loadGamesPool(),
-    loadStats(),
-    loadProgress(),
-    loadRules()
-  ];
-  
-  // Wait for all, but don't block UI
-  const results = await Promise.allSettled(promises);
-  
-  // Check for errors
-  results.forEach((result, idx) => {
-    if(result.status === 'rejected') {
-      console.error(`Failed to load ${['games','stats','progress','rules'][idx]}:`, result.reason);
-    }
-  });
-  
+  await Promise.allSettled([ loadGamesPool(), loadStats(), loadProgress(), loadRules() ]);
   if(Object.values(liveOk).some(Boolean)) saveCache();
 
-  // Re-render with fresh data
-  renderStats(); 
-  renderProgress(); 
-  renderIntroStats(); 
-  renderPlayersGrid();
+  renderIntroStats(); renderPlayersGrid();
 
   const okCount = Object.values(liveOk).filter(Boolean).length;
-  if(okCount >= 4) setLiveStatus('Live ✓', 'live');
-  else if(okCount > 0) setLiveStatus(`Live: ${okCount}/4 разделов`, 'warn');
-  else setLiveStatus('Оффлайн (проверь публикацию таблицы)', 'offline');
+  if(okCount >= 3) setLiveStatus('Live ✓', 'live');
+  else if(okCount > 0) setLiveStatus('Live частично', 'warn');
+  else if(cached) setLiveStatus(`Оффлайн • кэш ${cacheAgeText(cached)}`, 'offline');
+  else setLiveStatus('Оффлайн • загрузка…', 'offline');
 
   const note = document.getElementById('liveNote');
   if(note){
-    if(okCount >= 4) note.textContent = 'Live: все данные загружены';
-    else if(okCount > 0) note.textContent = `Live: загружено ${okCount}/4 разделов. Обнови страницу для остальных.`;
-    else note.textContent = 'Не удалось загрузить данные. Проверь: Файл → Опубликовать в интернете в Google Sheets.';
+    if(okCount) note.textContent = `Live: загружено ${okCount}/4 разделов.`;
+    else if(cached) note.textContent = `Оффлайн — показаны кэшированные данные (${cacheAgeText(cached)}). Кэш обновится при подключении.`;
+    else note.textContent = 'Оффлайн — показаны placeholder-данные.';
   }
 
-  // Handle hash navigation after everything is ready
   const hash = location.hash;
   if(hash.startsWith('#roll=')){
     const [p, idx] = decodeURIComponent(hash.slice(6)).split(':');
-    if(PLAYER_GAMES[p]){ showPanel('games'); openWheelPlayer(p); lastWinner = parseInt(idx)||0; renderWheelList(p); }
+    if(PLAYER_GAMES[p]){ showPanel('games'); openWheelFor(p); lastWinner = parseInt(idx)||0; renderGamesTable(p); }
   } else if(hash.startsWith('#player/')){ openPlayerProfile(decodeURIComponent(hash.slice(8))); }
   else if(hash.startsWith('#stats')){ showPanel('stats'); lastPlayerList='stats'; }
   else if(hash.startsWith('#progress')){ showPanel('progress'); }
