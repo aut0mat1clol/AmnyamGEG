@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Амням Game Enjoyable Gauntlet — Лето 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=4">
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <img src="amnyam_left.png" class="omnom" alt="Ам Ням">
+    <h1>Амням Game Enjoyable Gauntlet <span>Лето 2026</span></h1>
+    <img src="amnyam_right.png" class="omnom" alt="Ам Ням">
+  </div>
+  <!-- <div class="hero-banner">
+    <img src="amnyam_banner.png" alt="Amnyam GEG banner">
+  </div> -->
+</header>
+
+<div class="tabs-wrap">
+  <div class="tabs" id="mainTabs">
+    <button class="tab active" data-panel="intro">Введение</button>
+    <button class="tab" data-panel="games">Игры участников</button>
+    <button class="tab" data-panel="progress">Общий прогресс</button>
+    <button class="tab" data-panel="stats">Статистика</button>
+    <button class="tab" data-panel="rules">Правила</button>
+    <button class="tab" data-panel="players">Участники</button>
+    <button class="tab" data-panel="player" id="playerTabBtn" style="display:none">Профиль</button>
+    <small id="liveStatus">Загрузка…</small>
+  </div>
+</div>
+
+<main>
+  <!-- Введение -->
+  <section class="panel active" id="panel-intro">
+    <div class="grid-2">
+      <div class="card">
+        <span class="badge">Amnyam GEG • Лето 2026</span>
+        <h2 style="margin-top:8px">Амням Game Enjoyable Gauntlet</h2>
+        <p>Амням Game Enjoyable Gauntlet (Амням GEG) — ивент, целью которого является, в первую очередь, получение удовольствия от прохождения видеоигр.</p>
+        <br>
+        <p>Каждая игра — это отдельный отрезок, со своим предустановками.<br>
+        Отрезок представляет собой: <b>Год выхода, Оценка GG, Стоимость игры.</b></p>
+        <br>
+        <p>Игры роллятся на сайте: <a href="https://gamegauntlets.com/" target="_blank" rel="noopener">Steam Game Gauntlet</a>.<br>
+        Именные отрезки — списки из 10 игр от участников. Ролл через <a href="https://wheelofnames.com/" target="_blank" rel="noopener">Wheel of Names</a> или через встроенное Колесо Ам Няма.</p>
+      </div>
+      <div class="card">
+        <h3>Ивент в цифрах <button class="btn secondary small" id="refreshAllBtn" style="float:right;margin-top:-4px">Обновить</button></h3>
+        <ul class="clean" id="introStats" style="margin-top:6px">
+          <li class="loading">Загружаю live-данные…</li>
+        </ul>
+        <br>
+        <div class="notice" id="liveNote">Live: все 26 листов таблицы подключены по gid.</div>
+        <p style="margin-top:10px"><a href="https://docs.google.com/spreadsheets/d/1OltGGv6rQx2sQu294h5nwsQwea-CvwxiP3f1bxE8HIU/edit?gid=0#gid=0" target="_blank" rel="noopener">Открыть исходную Google Таблицу →</a></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Игры участников / колесо -->
+  <section class="panel" id="panel-games">
+    <div class="roulette-wrap">
+      <h2>Игры участников — Колесо Ам Няма</h2>
+      <p class="muted" id="gamesSourceNote">Загрузка пула игр…</p>
+      
+      <div class="roulette-top">
+        <div class="field"><label>Участник</label><select id="playerSelect"></select></div>
+        <button class="btn" id="spinBtn">Крутить!</button>
+        <button class="btn secondary" onclick="shufflePlayer()">Случайный участник</button>
+        <button class="btn secondary small" onclick="copyWheelLink()">Скопировать ссылку</button>
+        <button class="btn secondary small" onclick="openPlayerProfile(document.getElementById('playerSelect').value)">Профиль →</button>
+      </div>
+
+      <div class="wheel-stage">
+        <div class="wheel-canvas-wrap">
+          <div class="wheel-pointer"></div>
+          <canvas id="wheel" width="360" height="360"></canvas>
+        </div>
+        <div>
+          <div class="spin-result" id="spinResult"><div class="big">Выбери участника → Крутить</div><p class="muted">10 игр на каждого</p></div>
+          <div class="games-list">
+            <table id="gamesTable"><thead><tr><th>#</th><th>Игра</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Прогресс -->
+  <section class="panel" id="panel-progress">
+    <div class="card">
+      <h2>Общий прогресс</h2>
+      <p class="muted" style="margin-bottom:10px" id="progressNote">Загрузка…</p>
+      <div class="progress-table-wrap">
+        <table class="progress-table" id="progressTable"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Статистика -->
+  <section class="panel" id="panel-stats">
+    <div class="card">
+      <h2>Статистика</h2>
+      <div class="stats-grid" id="statsGrid"><span class="loading">Загрузка…</span></div>
+      <p class="muted" style="margin-top:12px" id="statsTotal"></p>
+    </div>
+  </section>
+
+  <!-- Правила -->
+  <section class="panel" id="panel-rules">
+    <div class="card" id="rulesCard">
+      <h2>Правила</h2>
+      <div id="rulesContent"><span class="loading">Загрузка из Google Sheets…</span></div>
+    </div>
+  </section>
+
+  <!-- Участники -->
+  <section class="panel" id="panel-players">
+    <div class="card">
+      <h2>Участники — <span id="playerCount">21</span></h2>
+      <p class="muted">Кликни — откроется профиль с роллами, статусами, временем и отзывами.</p>
+      <div class="players-grid" id="playersGrid"></div>
+    </div>
+  </section>
+
+  <!-- Player profile -->
+  <section class="panel" id="panel-player">
+    <div class="card">
+      <span class="back-link" onclick="goBackFromProfile()">← Назад к участникам</span>
+      <div class="profile-head" style="margin-top:10px">
+        <div class="profile-avatar" id="pAvatar">?</div>
+        <div>
+          <h2 style="margin:0" id="pName">—</h2>
+          <div class="muted" id="pSubtitle"></div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn secondary small" id="pRefreshBtn">Обновить</button>
+          <button class="btn secondary small" onclick="openWheelFor(playerProfileName)">Колесо игр →</button>
+        </div>
+      </div>
+      <div class="profile-stats" id="pStats"></div>
+    </div>
+
+    <div class="card">
+      <div class="subtabs">
+        <button class="subtab active" data-psub="run">Прохождение</button>
+        <button class="subtab" data-psub="pool">Пул игр (10)</button>
+      </div>
+
+      <div id="psub-run">
+        <div class="run-table-wrap">
+          <table class="run-table" id="runTable">
+            <thead><tr><th>#</th><th>Игра</th><th>Статус</th><th>Отрезок</th><th>Время</th><th>Оценка</th><th>Комментарий</th></tr></thead>
+            <tbody><tr><td colspan="7" class="muted">Загрузка…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="psub-pool" style="display:none">
+        <p class="muted">Это те 10 игр, которые <span id="poolPlayerName">игрок</span> предложил для ивента.</p>
+        <div class="games-list" style="max-height:none;margin-top:10px">
+          <table id="poolTable"><thead><tr><th>#</th><th>Игра</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Amnyam GEG • Лето 2026 • live-reader для Google Sheets
+</footer>
+
+<script src="app.js?v=4" defer></script>
+</body>
+</html>
