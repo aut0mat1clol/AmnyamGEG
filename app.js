@@ -1,10 +1,10 @@
-/* Amnyam GEG — Live Reader v3.5
+/* Amnyam GEG — Live Reader v3.6
    single wheel, avatars, localStorage caching, dark theme
 */
 
 const SHEET_PUB_ID = '2PACX-1vRGUrrrjcldGF4ttve-lFTgUWpz_0LqHlp7XfkddTtvdb6ZeORLN8UnYgo0UuNFvXrHakV_BlXyb_XI';
 const GIDS = {
-  "Введение":0,"Правила":1943023590,"Игры участников":168003255,"Общий прогресс":229494004,"Статистика":498322058,
+  "Введение":0,"Правила":1943023590,"Игры участников":1680403255,"Общий прогресс":229494004,"Статистика":498322058,
   "billymoore":1138059924,"blyy":1959229150,"Waff1e":884474143,"BlackSecret":1106107494,"marixyana_":2012264950,
   "zo_0m23":24435965,"mozyakin":117799979,"Bulkich":1530541297,"uebergoose":1420315228,"fuurooshaa":2118018073,
   "mden1ss":251270529,"aut0mat1clol":26905011,"nimaruichi_":853685662,"WenKlase":1414740397,"UNIKNOW":930194743,
