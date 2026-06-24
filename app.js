@@ -197,22 +197,32 @@ function setLiveStatus(text, mode=''){
 }
 
 /* ===== LIVE LOADERS ===== */
-async function fetchCsv(gid, timeoutMs=6000){
+async function fetchCsv(gid, timeoutMs=15000, retry=1){
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs);
   try{
-    const r = await fetch(csvUrl(gid), {cache:'no-store', signal: controller.signal});
+    const url = csvUrl(gid);
+    console.log('Fetching CSV from:', url);
+    const r = await fetch(url, {cache:'no-store', signal: controller.signal});
     clearTimeout(t);
-    if(!r.ok) throw new Error(r.status);
+    if(!r.ok) throw new Error(`HTTP ${r.status} for gid=${gid}`);
     const txt = await r.text();
-    if(txt.includes('Page Not Found')||txt.includes('Sorry, unable')) throw new Error('not public');
+    if(txt.includes('Page Not Found')||txt.includes('Sorry, unable')||txt.includes('Sign in')) throw new Error(`Sheet not public for gid=${gid}`);
     return parseCSV(txt);
-  } catch(e){ clearTimeout(t); throw e; }
+  } catch(e){ 
+    clearTimeout(t); 
+    console.error('fetchCsv error:', e.message, 'for gid=', gid);
+    if(e.name === 'AbortError' && retry > 0) {
+      console.log('Retrying... attempts left:', retry);
+      return await fetchCsv(gid, timeoutMs, retry - 1);
+    }
+    throw e; 
+  }
 }
 
 async function loadGamesPool(){
   try{
-    const rows = await fetchCsv(GIDS["Игры участников"]);
+    const rows = await fetchCsv(GIDS["Игры участников"], 15000, 2);
     const collected = {}; PLAYERS.forEach(p=>collected[p]=[]);
     for(let r=0; r<rows.length; r++){
       const header = rows[r].map(c=> (c||'').trim());
@@ -253,7 +263,8 @@ async function loadGamesPool(){
     document.getElementById('gamesSourceNote').textContent = `Пул игр: ${liveOk.games ? 'Google Sheets (live)' : 'кэш'} • ${totalGames} игр`;
   }catch(e){
     console.warn('games pool load failed', e);
-    document.getElementById('gamesSourceNote').textContent = `Пул игр: кэш (${cacheAgeText(loadCache())})`;
+    const note = document.getElementById('gamesSourceNote');
+    if(note) note.textContent = `Пул игр: ошибка загрузки (${e.message}). Используется кэш.`;
   }
   initWheel();
 }
@@ -528,9 +539,7 @@ async function loadPlayerRun(name, force=false){
       runs.push({ game, status: (r[ci.status]||'').trim(), segment: (r[ci.segment]||'').trim(), time: (r[ci.time]||'').trim(), comment: (r[ci.comment]||'').trim(), score: (r[ci.score]||'').trim() });
       if(runs.length>60) break;
     }
-    let totalTime = '';
-    for(let i=0;i<Math.min(4, rows.length); i++){ const m = rows[i].join(' ').match(/(\d+:\d+:\d+)/); if(m){ totalTime = m[1]; break;} }
-    const data = {runs, totalTime, live:true};
+    const data = {runs, live:true};
     playerRunCache[name] = data;
     renderRunTable(data);
   }catch(e){
@@ -539,17 +548,30 @@ async function loadPlayerRun(name, force=false){
 }
 function renderRunTable(data){
   const tbody = document.querySelector('#runTable tbody'); if(!tbody) return;
-  if(!data.runs.length){ tbody.innerHTML='<tr><td colspan="7" class="muted">Пока пусто</td></tr>'; return;}
-  tbody.innerHTML = data.runs.map((run,i)=>{
+  if(!data.runs.length){ tbody.innerHTML='<tr><td colspan="7" class="muted">Пока пусто</td></tr>'; return; }
+  
+  // Show only games that have a status filled in (not empty, not "...", not "—")
+  const activeRuns = data.runs.filter(run => {
+    const st = (run.status||'').trim();
+    // Keep if status is filled and not just dots/dash
+    return st && st !== '...' && st !== '—' && st !== '-';
+  });
+  
+  // If no active runs, show message
+  if(activeRuns.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Нет игр со статусом (заполни статус в таблице)</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = activeRuns.map((run,i)=>{
     const st = (run.status||'').toLowerCase();
     let cls='s-other', label = run.status || '—';
     if(st.includes('пройден')){cls='s-done'}
     else if(st.includes('процесс')){cls='s-prog'}
     else if(st.includes('дроп')){cls='s-drop'}
-    else if(st.includes('рерол')){cls='s-reroll'}
+    else if(st.includes('реролл')){cls='s-reroll'}
     return `<tr><td>${i+1}</td><td><b>${escapeHtml(run.game)}</b></td><td><span class="status-badge ${cls}">${escapeHtml(label)}</span></td><td>${escapeHtml(run.segment)}</td><td class="run-time">${escapeHtml(run.time)}</td><td class="run-score">${escapeHtml(run.score)}</td><td class="run-comment">${escapeHtml(run.comment).slice(0,380)}</td></tr>`;
   }).join('');
-  if(data.totalTime){ const ps = document.getElementById('pSubtitle'); if(ps && !ps.textContent.includes('Общее время')) ps.textContent += ` • Общее время: ${data.totalTime}`; }
 }
 
 /* expose */
@@ -567,45 +589,76 @@ window.clearCache = function(){
 async function boot(isRefresh=false){
   const cached = loadCache();
 
-  if(!isRefresh && cached && !isCacheExpired(cached)){
+  // Always show cached data immediately for speed
+  if(cached && !isCacheExpired(cached)) {
     applyCache(cached);
     setLiveStatus(`Кэш (${cacheAgeText(cached)})`, 'warn');
-    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
-    const rc = document.getElementById('rulesContent');
-    if(!cached.liveOk?.rules && rc) rc.innerHTML = RULES_FALLBACK_HTML;
-  } else if(!isRefresh && cached) {
+  } else if(cached) {
     applyCache(cached);
     setLiveStatus(`Кэш устарел (${cacheAgeText(cached)})`, 'warn');
-    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
-  } else if(!isRefresh) {
+  } else {
+    // No cache - show placeholders
     PLAYER_GAMES = JSON.parse(JSON.stringify(PLACEHOLDER_GAMES));
     STATS = JSON.parse(JSON.stringify(PLACEHOLDER_STATS));
     STATS_TOTAL = {...PLACEHOLDER_STATS_TOTAL};
     PROGRESS_SEGMENTS = [...PLACEHOLDER_SEGMENTS];
     PROGRESS = JSON.parse(JSON.stringify(PLACEHOLDER_PROGRESS));
-    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
-    const rc = document.getElementById('rulesContent'); if(rc) rc.innerHTML = RULES_FALLBACK_HTML;
-    setLiveStatus('Первый запуск…', 'warn');
+    setLiveStatus('Загрузка...', 'warn');
+  }
+  
+  // Render immediately with cached/placeholder data
+  renderStats(); 
+  renderProgress(); 
+  renderIntroStats(); 
+  renderPlayersGrid(); 
+  initWheel();
+  
+  const rc = document.getElementById('rulesContent');
+  if(rc && !(cached && cached.liveOk && cached.liveOk.rules)) {
+    rc.innerHTML = RULES_FALLBACK_HTML;
   }
 
-  await Promise.allSettled([ loadGamesPool(), loadStats(), loadProgress(), loadRules() ]);
+  // Now load fresh data in parallel (non-blocking)
+  setLiveStatus('Обновление данных...', 'warn');
+  
+  const promises = [
+    loadGamesPool(),
+    loadStats(),
+    loadProgress(),
+    loadRules()
+  ];
+  
+  // Wait for all, but don't block UI
+  const results = await Promise.allSettled(promises);
+  
+  // Check for errors
+  results.forEach((result, idx) => {
+    if(result.status === 'rejected') {
+      console.error(`Failed to load ${['games','stats','progress','rules'][idx]}:`, result.reason);
+    }
+  });
+  
   if(Object.values(liveOk).some(Boolean)) saveCache();
 
-  renderIntroStats(); renderPlayersGrid();
+  // Re-render with fresh data
+  renderStats(); 
+  renderProgress(); 
+  renderIntroStats(); 
+  renderPlayersGrid();
 
   const okCount = Object.values(liveOk).filter(Boolean).length;
-  if(okCount >= 3) setLiveStatus('Live ✓', 'live');
-  else if(okCount > 0) setLiveStatus('Live частично', 'warn');
-  else if(cached) setLiveStatus(`Оффлайн • кэш ${cacheAgeText(cached)}`, 'offline');
-  else setLiveStatus('Оффлайн • загрузка…', 'offline');
+  if(okCount >= 4) setLiveStatus('Live ✓', 'live');
+  else if(okCount > 0) setLiveStatus(`Live: ${okCount}/4 разделов`, 'warn');
+  else setLiveStatus('Оффлайн (проверь публикацию таблицы)', 'offline');
 
   const note = document.getElementById('liveNote');
   if(note){
-    if(okCount) note.textContent = `Live: загружено ${okCount}/4 разделов.`;
-    else if(cached) note.textContent = `Оффлайн — показаны кэшированные данные (${cacheAgeText(cached)}). Кэш обновится при подключении.`;
-    else note.textContent = 'Оффлайн — показаны placeholder-данные.';
+    if(okCount >= 4) note.textContent = 'Live: все данные загружены';
+    else if(okCount > 0) note.textContent = `Live: загружено ${okCount}/4 разделов. Обнови страницу для остальных.`;
+    else note.textContent = 'Не удалось загрузить данные. Проверь: Файл → Опубликовать в интернете в Google Sheets.';
   }
 
+  // Handle hash navigation after everything is ready
   const hash = location.hash;
   if(hash.startsWith('#roll=')){
     const [p, idx] = decodeURIComponent(hash.slice(6)).split(':');
