@@ -1,5 +1,5 @@
 /* Amnyam GEG — Live Reader v3.5
-   single wheel, avatars, localStorage caching
+   single wheel, avatars, localStorage caching, dark theme
 */
 
 const SHEET_PUB_ID = '2PACX-1vRGUrrrjcldGF4ttve-lFTgUWpz_0LqHlp7XfkddTtvdb6ZeORLN8UnYgo0UuNFvXrHakV_BlXyb_XI';
@@ -63,14 +63,25 @@ function parseCSV(text){
   return rows;
 }
 
+/* ===== THEME ===== */
+function setTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('amnyam_theme', theme);
+}
+function initTheme(){
+  const saved = localStorage.getItem('amnyam_theme');
+  if(saved){ setTheme(saved); return; }
+  if(window.matchMedia('(prefers-color-scheme: dark)').matches){ setTheme('dark'); return; }
+  setTheme('light');
+}
+
 /* ===== CACHE SYSTEM ===== */
 const CACHE_KEY = 'amnyam_geg_cache_v2';
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function saveCache(){
   try {
-    const cache = { ts: Date.now(), version: CACHE_KEY, PLAYER_GAMES, STATS, STATS_TOTAL, PROGRESS_SEGMENTS, PROGRESS, liveOk };
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), version: CACHE_KEY, PLAYER_GAMES, STATS, STATS_TOTAL, PROGRESS_SEGMENTS, PROGRESS, liveOk }));
   } catch(e) { console.warn('Cache save failed:', e); }
 }
 
@@ -92,10 +103,7 @@ function applyCache(cache){
   if(cache.liveOk) liveOk = cache.liveOk;
 }
 
-function isCacheExpired(cache){
-  if(!cache) return true;
-  return (Date.now() - cache.ts) > CACHE_TTL_MS;
-}
+function isCacheExpired(cache){ if(!cache) return true; return (Date.now() - cache.ts) > CACHE_TTL_MS; }
 
 function cacheAgeText(cache){
   if(!cache) return 'нет кэша';
@@ -106,7 +114,7 @@ function cacheAgeText(cache){
   return `${Math.floor(age/86400000)} дн назад`;
 }
 
-/* ===== PLACEHOLDER TEXT (no cache, no live) ===== */
+/* ===== PLACEHOLDER TEXT ===== */
 const RULES_TOOLS_HTML = `<p class="muted" style="margin-top:14px">Инструменты: <a href="https://howlongtobeat.com/" target="_blank" rel="noopener">HowLongToBeat</a> • <a href="https://wheelofnames.com/" target="_blank" rel="noopener">Wheel of Names</a> • <a href="https://gamegauntlets.com/" target="_blank" rel="noopener">Steam Game Gauntlet</a> • <a href="https://livesplit.org/" target="_blank" rel="noopener">LiveSplit</a> • <a href="https://rutracker.org/" target="_blank" rel="noopener">RuTracker.org</a> • <a href="https://sourceforge.net/projects/dxwnd/" target="_blank" rel="noopener">DxWnd</a></p>`;
 
 const RULES_FALLBACK_HTML = `<div class="rules-list">
@@ -124,7 +132,6 @@ const RULES_FALLBACK_HTML = `<div class="rules-list">
 <div class="rule-item">12. Все спорные моменты решаются коллегиально.</div>
 </div>` + RULES_TOOLS_HTML;
 
-// Generic placeholders — show "Loading…" instead of hardcoded game lists
 const PLACEHOLDER_GAMES = {};
 PLAYERS.forEach(p => { PLACEHOLDER_GAMES[p] = ['Загрузка…']; });
 const PLACEHOLDER_STATS = PLAYERS.map(p => ({ player: p, stage: '—', done: '—', prog: '—', drop: '—', reroll: '—' }));
@@ -142,8 +149,14 @@ let PROGRESS = {};
 let playerRunCache = {};
 let liveOk = {games:false, stats:false, progress:false, rules:false};
 
-/* ===== TABS ===== */
+/* ===== TABS & EVENTS ===== */
 document.addEventListener('DOMContentLoaded', ()=>{
+  initTheme();
+  document.getElementById('themeToggle')?.addEventListener('click', ()=>{
+    const current = document.documentElement.getAttribute('data-theme');
+    setTheme(current === 'dark' ? 'light' : 'dark');
+  });
+
   document.querySelectorAll('.tab[data-panel]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       showPanel(btn.dataset.panel);
@@ -228,7 +241,6 @@ async function loadGamesPool(){
       if(collected[p].length >= 5) filledCount++;
     }
     if(filledCount >= 10){
-      // Top up with placeholders if someone has < 10
       for(const p of PLAYERS){
         const live = collected[p] || [];
         while(live.length < 10) live.push('Ещё не указано');
@@ -556,60 +568,36 @@ async function boot(isRefresh=false){
   const cached = loadCache();
 
   if(!isRefresh && cached && !isCacheExpired(cached)){
-    // Fast path: use fresh cache
     applyCache(cached);
     setLiveStatus(`Кэш (${cacheAgeText(cached)})`, 'warn');
-    renderStats();
-    renderProgress();
-    renderIntroStats();
-    renderPlayersGrid();
-    initWheel();
+    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
     const rc = document.getElementById('rulesContent');
     if(!cached.liveOk?.rules && rc) rc.innerHTML = RULES_FALLBACK_HTML;
   } else if(!isRefresh && cached) {
-    // Stale cache: use but mark
     applyCache(cached);
     setLiveStatus(`Кэш устарел (${cacheAgeText(cached)})`, 'warn');
-    renderStats();
-    renderProgress();
-    renderIntroStats();
-    renderPlayersGrid();
-    initWheel();
+    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
   } else if(!isRefresh) {
-    // First visit, no cache: use generic placeholders
     PLAYER_GAMES = JSON.parse(JSON.stringify(PLACEHOLDER_GAMES));
     STATS = JSON.parse(JSON.stringify(PLACEHOLDER_STATS));
     STATS_TOTAL = {...PLACEHOLDER_STATS_TOTAL};
     PROGRESS_SEGMENTS = [...PLACEHOLDER_SEGMENTS];
     PROGRESS = JSON.parse(JSON.stringify(PLACEHOLDER_PROGRESS));
-    renderStats();
-    renderProgress();
-    renderIntroStats();
-    renderPlayersGrid();
-    initWheel();
+    renderStats(); renderProgress(); renderIntroStats(); renderPlayersGrid(); initWheel();
     const rc = document.getElementById('rulesContent'); if(rc) rc.innerHTML = RULES_FALLBACK_HTML;
     setLiveStatus('Первый запуск…', 'warn');
   }
 
-  // Always try to refresh live data in background
   await Promise.allSettled([ loadGamesPool(), loadStats(), loadProgress(), loadRules() ]);
-
-  // Save successful live data to cache
   if(Object.values(liveOk).some(Boolean)) saveCache();
 
-  renderIntroStats();
-  renderPlayersGrid();
+  renderIntroStats(); renderPlayersGrid();
 
   const okCount = Object.values(liveOk).filter(Boolean).length;
-  if(okCount >= 3){
-    setLiveStatus('Live ✓', 'live');
-  } else if(okCount > 0){
-    setLiveStatus('Live частично', 'warn');
-  } else if(cached){
-    setLiveStatus(`Оффлайн • кэш ${cacheAgeText(cached)}`, 'offline');
-  } else {
-    setLiveStatus('Оффлайн • загрузка…', 'offline');
-  }
+  if(okCount >= 3) setLiveStatus('Live ✓', 'live');
+  else if(okCount > 0) setLiveStatus('Live частично', 'warn');
+  else if(cached) setLiveStatus(`Оффлайн • кэш ${cacheAgeText(cached)}`, 'offline');
+  else setLiveStatus('Оффлайн • загрузка…', 'offline');
 
   const note = document.getElementById('liveNote');
   if(note){

@@ -1,4 +1,4 @@
-# Амням Game Enjoyable Gauntlet — Live Reader
+# 🍩 Амням Game Enjoyable Gauntlet — Live Reader
 
 > 🌐 [aut0mat1clol.github.io/AmnyamGEG](https://aut0mat1clol.github.io/AmnyamGEG/)
 
