@@ -661,7 +661,9 @@ async function loadPlayerRun(name, force=false){
     for(let i=hRow+1;i<rows.length;i++){
       const r = rows[i]; const game = (r[ci.game]||'').trim();
       if(!game || game === '...' || game.startsWith('...')) continue;
-      runs.push({ game, status: (r[ci.status]||'').trim(), segment: (r[ci.segment]||'').trim(), time: (r[ci.time]||'').trim(), comment: (r[ci.comment]||'').trim(), score: (r[ci.score]||'').trim() });
+      const status = (r[ci.status]||'').trim();
+      if(!status || status === '...' || status.startsWith('...')) continue;
+      runs.push({ game, status, segment: (r[ci.segment]||'').trim(), time: (r[ci.time]||'').trim(), comment: (r[ci.comment]||'').trim(), score: (r[ci.score]||'').trim() });
       if(runs.length>60) break;
     }
     let totalTime = '';
@@ -708,7 +710,9 @@ async function preloadPlayerRuns(name) {
     for (let i = hRow + 1; i < rows.length; i++) {
       const r = rows[i]; const game = (r[ci.game] || '').trim();
       if (!game || game === '...' || game.startsWith('...')) continue;
-      runs.push({ game, status: (r[ci.status] || '').trim(), segment: (r[ci.segment] || '').trim(), time: (r[ci.time] || '').trim(), comment: (r[ci.comment] || '').trim(), score: (r[ci.score] || '').trim() });
+      const status = (r[ci.status] || '').trim();
+      if (!status || status === '...' || status.startsWith('...')) continue;
+      runs.push({ game, status, segment: (r[ci.segment] || '').trim(), time: (r[ci.time] || '').trim(), comment: (r[ci.comment] || '').trim(), score: (r[ci.score] || '').trim() });
       if (runs.length > 60) break;
     }
     let totalTime = '';
