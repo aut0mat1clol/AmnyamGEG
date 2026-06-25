@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=9">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
 
@@ -86,6 +86,19 @@
         <button class="btn" id="spinBtn">Крутить!</button>
         <button class="btn secondary" onclick="shuffleWheel()">Перемешать</button>
         <button class="btn secondary small" id="profileBtn" onclick="openPlayerProfile(document.getElementById('playerSelect').value)">Профиль</button>
+      </div>
+
+      <div class="wheel-settings">
+        <div class="wheel-setting">
+          <label>Длительность прокрута: <span id="durationValue">10</span> сек</label>
+          <input type="range" id="wheelDuration" min="5" max="20" step="1" value="10">
+          <div class="range-labels"><span>5 сек</span><span>20 сек</span></div>
+        </div>
+        <div class="wheel-setting">
+          <label>Скорость вращения: <span id="speedValue">1</span></label>
+          <input type="range" id="wheelSpeed" min="0.2" max="2" step="0.1" value="1">
+          <div class="range-labels"><span>0.2</span><span>2</span></div>
+        </div>
       </div>
 
       <div class="wheel-stage">
@@ -187,6 +200,6 @@
   Amnyam GEG • Лето 2026 • live-reader для Google Sheets
 </footer>
 
-<script src="app.js?v=9" defer></script>
-</body>
+<script src="app.js?v=7" defer></script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a113bd48dc593ed0',t:'MTc4MjM4ODA2Ng=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

@@ -453,6 +453,14 @@ function initWheel(){
   
   if(!wheelInitialized){
     document.getElementById('spinBtn')?.addEventListener('click', spinWheel);
+    document.getElementById('wheelDuration')?.addEventListener('input', e => {
+      const el = document.getElementById('durationValue');
+      if(el) el.textContent = e.target.value;
+    });
+    document.getElementById('wheelSpeed')?.addEventListener('input', e => {
+      const el = document.getElementById('speedValue');
+      if(el) el.textContent = e.target.value;
+    });
     wheelInitialized=true;
   }
   
@@ -538,9 +546,12 @@ function spinWheel(){
   const currentMod = ((currentDeg % 360) + 360) % 360;
   const winnerAngle = 360 - winnerIndex * segmentAngle - segmentAngle/2;
   const delta = (winnerAngle - currentMod + 360) % 360;
-  const targetDeg = currentDeg + 360 * 5 + delta;
+  const speed = Math.max(0.2, parseFloat(document.getElementById('wheelSpeed')?.value || '1'));
+  const duration = Math.max(5000, parseFloat(document.getElementById('wheelDuration')?.value || '10') * 1000);
+  const baseSpins = 10;
+  const spinCount = Math.max(0.5, baseSpins * speed);
+  const targetDeg = currentDeg + 360 * spinCount + delta;
   const start = performance.now();
-  const duration = 2600;
   const startAngle = currentDeg;
   
   function easeOut(t){ return 1 - Math.pow(1-t,3); }
