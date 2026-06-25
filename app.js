@@ -464,6 +464,7 @@ function initWheel(){
 }
 
 function drawPlayerWheel() {
+  lastWinner = -1;
   let pool = [...PLAYERS];
   if (currentSpinner && currentSpinner !== 'Все игроки прокручены') {
     const cached = playerRunCache[currentSpinner];
@@ -480,6 +481,7 @@ function drawPlayerWheel() {
 }
 
 function drawGamesWheel(playerName) {
+  lastWinner = -1;
   wheelGamesList = (PLAYER_GAMES[playerName] || []).filter(g => g && g !== '...' && g !== 'Ещё не указано');
   if(wheelGamesList.length === 0) wheelGamesList = ['Нет игр'];
   renderGamesTable(playerName);
@@ -487,12 +489,13 @@ function drawGamesWheel(playerName) {
 }
 
 function renderGamesTable(playerName) {
-  const tbody = document.querySelector('#gamesTable tbody'); 
+  const tbody = document.querySelector('#gamesTable tbody');
   if(!tbody) return;
   tbody.innerHTML='';
+  const winnerGame = (wheelMode==='games' && lastWinner>=0 && wheelGamesList[lastWinner]) || null;
   (PLAYER_GAMES[playerName]||[]).forEach((g,i)=>{
     const tr=document.createElement('tr');
-    if(wheelMode==='games' && i===lastWinner) tr.className='winner';
+    if(wheelMode==='games' && g && g===winnerGame) tr.className='winner';
     tr.innerHTML=`<td>${i+1}</td><td>${escapeHtml(g)}</td>`;
     tbody.appendChild(tr);
   });
@@ -561,9 +564,6 @@ function spinWheel(){
         // Game selected
         updateSpinResult(`Выпала игра:`, winner);
         renderGamesTable(currentWheelPlayer);
-        // Highlight winner in table
-        const rows = document.querySelectorAll('#gamesTable tbody tr');
-        if(rows[winnerIndex]) rows[winnerIndex].classList.add('winner');
       }
     }
   }
@@ -580,6 +580,7 @@ function shuffleArray(arr){
 }
 
 function shuffleWheel(){
+  lastWinner = -1;
   if(wheelMode === 'players') {
     wheelPlayersList = shuffleArray(wheelPlayersList);
     drawWheelGeneric(wheelPlayersList);
@@ -587,6 +588,7 @@ function shuffleWheel(){
     if(!currentWheelPlayer) currentWheelPlayer = PLAYERS[0];
     wheelGamesList = shuffleArray(wheelGamesList);
     drawWheelGeneric(wheelGamesList);
+    renderGamesTable(currentWheelPlayer);
   }
 }
 
