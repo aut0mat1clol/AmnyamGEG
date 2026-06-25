@@ -466,7 +466,6 @@ function initWheel(){
 function drawPlayerWheel() {
   let pool = [...PLAYERS];
   if (currentSpinner && currentSpinner !== 'Все игроки прокручены') {
-    pool = pool.filter(p => p !== currentSpinner);
     const cached = playerRunCache[currentSpinner];
     if (cached && cached.runs) {
       const played = new Set(cached.runs.map(r => r.segment).filter(Boolean));
