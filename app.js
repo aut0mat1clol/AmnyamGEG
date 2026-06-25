@@ -570,21 +570,23 @@ function spinWheel(){
   requestAnimationFrame(frame);
 }
 
-function shuffleWheel(){ 
+function shuffleArray(arr){
+  const a = [...arr];
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function shuffleWheel(){
   if(wheelMode === 'players') {
-    const rand = PLAYERS[Math.floor(Math.random()*PLAYERS.length)];
-    document.getElementById('playerSelect').value = rand;
-    currentSpinner = rand;
-    currentWheelPlayer = rand;
-    if (!playerRunCache[currentSpinner] && !preloadingSet.has(currentSpinner)) {
-      preloadPlayerRuns(currentSpinner).then(() => drawPlayerWheel());
-    } else {
-      drawPlayerWheel();
-    }
+    wheelPlayersList = shuffleArray(wheelPlayersList);
+    drawWheelGeneric(wheelPlayersList);
   } else {
     if(!currentWheelPlayer) currentWheelPlayer = PLAYERS[0];
-    // Already on games mode, just redraw
-    drawGamesWheel(currentWheelPlayer);
+    wheelGamesList = shuffleArray(wheelGamesList);
+    drawWheelGeneric(wheelGamesList);
   }
 }
 
